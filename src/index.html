@@ -1,0 +1,244 @@
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <style type="text/css">
+            html, body, div
+            {
+                margin: 0;
+                padding: 0;
+                background: #ddd;
+            }
+
+            #canvas_container
+            {
+                padding: 0px;
+                margin: 0px;
+            }
+
+            canvas
+            {
+                padding: 0px;
+                margin: 0px;
+                border: 0px solid black;
+                image-rendering: -moz-crisp-edges;
+                image-rendering: -webkit-crisp-edges;
+                image-rendering: pixelated;
+                image-rendering: crisp-edges;
+
+                
+            }
+        </style>
+    </head>
+    <body>
+        <div id="canvas_container">
+            <canvas id="main_canvas" width=0 height=0>Your browser does not support HTML5.</canvas>
+        </div>
+
+        <script>
+            var wasm_memory = null;
+            var time_start_ms = new Date().getTime();
+            var assets = [];
+            var asset_load_count = 0;
+            var canvas_font = "Arial";
+            var max_string_len = 64;
+            var framebuffer_location = 0;
+
+            var canvas = document.getElementById("main_canvas");
+            var ctx = canvas.getContext("2d");
+
+            var canvas_imagedata = null;
+
+            function c_str_to_js_str(c_string)
+            {
+                // c_string is a pointer to a null-terminated string
+                var char_view = new Int8Array(wasm_memory.buffer, c_string, max_string_len);
+                var len;
+                for (len = 0; len < max_string_len; ++len)
+                {
+                    if (char_view[len] == 0) break;
+                }
+                return String.fromCharCode.apply(null, new Int8Array(wasm_memory.buffer, c_string, len));
+            }
+
+            function js_canvas_resize(w, h, scale)
+            {
+                canvas.width = w;
+                canvas.height = h;
+                canvas.style.width = w * scale;
+                canvas.style.height = h * scale;
+                canvas_imagedata = ctx.createImageData(canvas.width, canvas.height);
+            }
+
+            function js_print(msg)
+            {
+                console.log(c_str_to_js_str(msg));
+            }
+
+            function js_show_alert(msg)
+            {
+                alert(c_str_to_js_str(msg));
+            }
+
+            function js_print_number(number)
+            {
+                console.log(number);
+            }
+
+            function js_get_time_ms()
+            {
+                return new Date().getTime() - time_start_ms;
+            }
+
+            function js_get_unix_time()
+            {
+                return Date.now() / 1000;
+            }
+
+            function js_asset_load_image(arg_url, id)
+            {
+                var image = new Image();
+
+                image.addEventListener("load", function() {
+                    // Obtain pixel array from image
+                    // Holy javascript..
+                    var image_canvas = document.createElement('canvas');
+                    image_canvas.width = image.width;
+                    image_canvas.height = image.height;
+                    var image_ctx = image_canvas.getContext('2d');
+                    image_ctx.drawImage(image, 0, 0);
+                    var image_data = image_ctx.getImageData(0, 0, image.width, image.height);
+                    image_canvas.remove();
+
+                    // Deterime where to copy the image data
+                    var detination = instance.exports.js_on_image_loaded(id, image.naturalWidth, image.naturalHeight);
+
+                    // Copy
+                    var memory = new Uint8Array(wasm_memory.buffer, detination, image.naturalWidth * image.naturalHeight * 4);
+                    memory.set(image_data.data);
+
+                    // Increment loaded assets counter
+                    asset_load_count += 1;
+                });
+
+                image.src = c_str_to_js_str(arg_url);
+            }
+
+            function js_asset_load_audio(arg_url)
+            {
+                assets.push(new Audio());
+                assets[assets.length - 1].addEventListener("loadeddata", function() {
+                    asset_load_count += 1;
+                });
+                assets[assets.length - 1].src = c_str_to_js_str(arg_url);
+                return assets.length - 1;
+            }
+
+            function js_asset_count_loaded()
+            {
+                return asset_load_count;
+            }
+
+            function js_audio_play(id)
+            {
+                if (id < 0 || id > assets.length - 1) return; // TODO(Pedro): Assert
+                assets[id].play();
+            }
+
+            function js_audio_pause(id)
+            {
+                if (id < 0 || id > assets.length - 1) return; // TODO(Pedro): Assert
+                assets[id].pause();
+            }
+
+            function js_audio_stop(id)
+            {
+                if (id < 0 || id > assets.length - 1) return; // TODO(Pedro): Assert
+                assets[id].pause();
+                assets[id].currentTime = 0.0;
+            }
+
+            function js_audio_get_time(id)
+            {
+                if (id < 0 || id > assets.length - 1) return; // TODO(Pedro): Assert
+                return Math.round(assets[id].currentTime * 1000);
+            }
+
+            function js_set_framebuffer(address)
+            {
+                framebuffer_location = address;
+            }
+
+            function js_localstore_get_s32(key)
+            {
+                var key_str = c_str_to_js_str(key);
+                var value_str = localStorage.getItem(key_str);
+                return parseInt(value_str);
+            }
+
+            function js_localstore_set_s32(key, value)
+            {
+                var key_str = c_str_to_js_str(key);
+                localStorage.setItem(key_str, value);
+            }
+
+            fetch("squares.wasm").then(function(response) {
+                return response.arrayBuffer();
+            }).then(function(bytes) {
+                var module = new WebAssembly.Module(bytes);
+
+                /*
+                console.log("Imports:");
+                console.log(WebAssembly.Module.imports(module));
+                console.log("Exports:");
+                console.log(WebAssembly.Module.exports(module));
+                */
+
+                var imports_list = {
+                    env: {
+                        js_print: js_print,
+                        js_print_number: js_print_number,
+                        js_show_alert: js_show_alert,
+                        js_canvas_resize: js_canvas_resize,
+                        js_get_time_ms: js_get_time_ms,
+                        js_get_unix_time: js_get_unix_time,
+                        js_asset_load_image: js_asset_load_image,
+                        js_asset_load_audio: js_asset_load_audio,
+                        js_asset_count_loaded: js_asset_count_loaded,
+                        js_audio_play: js_audio_play,
+                        js_audio_pause: js_audio_pause,
+                        js_audio_stop: js_audio_stop,
+                        js_audio_get_time: js_audio_get_time,
+                        js_set_framebuffer: js_set_framebuffer,
+                        js_localstore_get_s32: js_localstore_get_s32,
+                        js_localstore_set_s32: js_localstore_set_s32,
+                    }
+                };
+
+                instance = new WebAssembly.Instance(module, imports_list);
+
+                wasm_memory = instance.exports.memory;
+
+                instance.exports.js_on_startup();
+
+                setInterval(function(){
+                    instance.exports.js_on_frame();
+
+                    var fb_size = canvas.width * canvas.height * 4;
+                    var char_view = new Uint8Array(wasm_memory.buffer, framebuffer_location, fb_size);
+                    canvas_imagedata.data.set(char_view);
+                    ctx.putImageData(canvas_imagedata, 0, 0);
+                }, 1000.0 / 60.0);
+
+                // TODO(Pedro): Find a way to differentiate between auto-repeat events (Don't sent them to WASM)
+                document.addEventListener('keydown', (event) => {
+                    if ([32, 37, 38, 39, 40].indexOf(event.keyCode) > -1) event.preventDefault();
+                    instance.exports.js_on_keyboard_event(event.which, 1);
+                });
+                document.addEventListener('keyup', (event) => {
+                    if ([32, 37, 38, 39, 40].indexOf(event.keyCode) > -1) event.preventDefault();
+                    instance.exports.js_on_keyboard_event(event.which, 0);
+                });
+            });
+        </script>
+    </body>
+</html>
