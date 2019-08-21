@@ -8,8 +8,8 @@ del %output_file%
 echo Building %output_file%
 
 REM   Compile both source files into LLVM bitcode
-clang src/squares.c -emit-llvm -c -o llvm_bitfile_squares.bc --target=wasm32
-clang src/shared.c -emit-llvm -c -o llvm_bitfile_shared.bc --target=wasm32
+clang src/squares.c -emit-llvm -c -o llvm_bitfile_squares.bc --target=wasm32 -std=c11
+clang src/shared.c -emit-llvm -c -o llvm_bitfile_shared.bc --target=wasm32 -std=c11
 
 REM   Link object files to create WASM module.
 REM The module defines the size of its memory. (It exports memory rather than imports it)
