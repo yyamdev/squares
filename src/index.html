@@ -1,3 +1,4 @@
+<!DOCTYPE html5>
 <html>
     <head>
         <meta charset="UTF-8">
@@ -181,41 +182,33 @@
                 localStorage.setItem(key_str, value);
             }
 
-            fetch("squares.wasm").then(function(response) {
+            var imports_list = {
+                env: {
+                    js_print: js_print,
+                    js_print_number: js_print_number,
+                    js_show_alert: js_show_alert,
+                    js_canvas_resize: js_canvas_resize,
+                    js_get_time_ms: js_get_time_ms,
+                    js_get_unix_time: js_get_unix_time,
+                    js_asset_load_image: js_asset_load_image,
+                    js_asset_load_audio: js_asset_load_audio,
+                    js_asset_count_loaded: js_asset_count_loaded,
+                    js_audio_play: js_audio_play,
+                    js_audio_pause: js_audio_pause,
+                    js_audio_stop: js_audio_stop,
+                    js_audio_get_time: js_audio_get_time,
+                    js_set_framebuffer: js_set_framebuffer,
+                    js_localstore_get_s32: js_localstore_get_s32,
+                    js_localstore_set_s32: js_localstore_set_s32,
+                }
+            };
+
+            fetch('squares.wasm').then(function(response) {
                 return response.arrayBuffer();
             }).then(function(bytes) {
-                var module = new WebAssembly.Module(bytes);
-
-                /*
-                console.log("Imports:");
-                console.log(WebAssembly.Module.imports(module));
-                console.log("Exports:");
-                console.log(WebAssembly.Module.exports(module));
-                */
-
-                var imports_list = {
-                    env: {
-                        js_print: js_print,
-                        js_print_number: js_print_number,
-                        js_show_alert: js_show_alert,
-                        js_canvas_resize: js_canvas_resize,
-                        js_get_time_ms: js_get_time_ms,
-                        js_get_unix_time: js_get_unix_time,
-                        js_asset_load_image: js_asset_load_image,
-                        js_asset_load_audio: js_asset_load_audio,
-                        js_asset_count_loaded: js_asset_count_loaded,
-                        js_audio_play: js_audio_play,
-                        js_audio_pause: js_audio_pause,
-                        js_audio_stop: js_audio_stop,
-                        js_audio_get_time: js_audio_get_time,
-                        js_set_framebuffer: js_set_framebuffer,
-                        js_localstore_get_s32: js_localstore_get_s32,
-                        js_localstore_set_s32: js_localstore_set_s32,
-                    }
-                };
-
-                instance = new WebAssembly.Instance(module, imports_list);
-
+                return WebAssembly.instantiate(bytes, imports_list);
+            }).then(function(result) {
+                instance = result.instance;
                 wasm_memory = instance.exports.memory;
 
                 instance.exports.js_on_startup();
@@ -236,6 +229,7 @@
                 });
                 document.addEventListener('keyup', (event) => {
                     if ([32, 37, 38, 39, 40].indexOf(event.keyCode) > -1) event.preventDefault();
+                    //if (event.keyCode == 17) console.log("SCREENSHOT: " + canvas.toDataURL());
                     instance.exports.js_on_keyboard_event(event.which, 0);
                 });
             });
