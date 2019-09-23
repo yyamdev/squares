@@ -5,12 +5,12 @@ Play the game on [itch.io](https://yyam.itch.io/squares).
 Squares compiles to WebAssembly using Clang. It does not require Emscripten or the C standard library.
 
 # Building
-A build script is provided for windows that uses Clang to build a WASM module.
-* The build script expects a directory called "assets" to be present in the root directory of the repository. This directory is not tracked in this repository but can be downloaded [here](https://github.com/yyamdev/squares/releases/tag/v1.0.0). (Hosted on GitHub as a release.)
+Build scripts are provided for Windows and Linux that use Clang to build a WASM module.
+* The scripts expect a directory called "assets" to be present in the root directory of the repository. This directory is not tracked in this repository but can be downloaded [here](https://github.com/yyamdev/squares/releases/tag/v1.0.0). (Hosted on GitHub as a release.)
 * Open a terminal/command prompt.
 * Navigate to the root directory of the repository.
 * Ensure Clang available in the current session.
-* Run `tools/build.bat`
+* Run `tools/build.bat` or `tools/build.sh`
 
 # Running
 * Open `build/index.html`
